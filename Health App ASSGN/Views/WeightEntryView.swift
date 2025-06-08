@@ -7,204 +7,204 @@
 
 import SwiftUI
 
-struct RulerWeightSlider: View {
-    @Binding var weight: Double
-    let minWeight: Double = 0
-    let maxWeight: Double = 400
+struct WheelPicker: View {
+    // MARK: - Properties
     
-    @State private var scrollPosition: Double = 170.0
+    /// Configuration for the wheel picker.
+    var config: Config
+    /// Binding to the selected value.
+    @Binding var value: CGFloat
+    @Environment(\.dismiss) private var dismiss
     
-    private let tickSpacing: CGFloat = 20 // Wider spacing for better visibility
-    private let majorTickHeight: CGFloat = 25
-    private let mediumTickHeight: CGFloat = 18
-    private let minorTickHeight: CGFloat = 12
+    /// State to track if the view has been loaded.
+    @State private var isLoaded: Bool = false
+    
+    // MARK: - Body
     
     var body: some View {
-        VStack(spacing: 8) {
-            // Range labels
-            HStack {
-                Text("\(Int(weight - 1))")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                
-                Spacer()
-                
-                Text("\(Int(weight + 1))")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-            }
-            .padding(.horizontal, 20)
+        GeometryReader { geometry in
+            let size = geometry.size
+            let horizontalPadding = size.width / 2
             
-            // Wheel picker using iOS 17 ScrollView
-            ZStack {
-                // Background
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white)
-                    .frame(height: 80)
-                    .shadow(color: Color.black.opacity(0.1), radius: 4, x: 0, y: 2)
-                
-                // Scrollable ruler
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 0) {
-                        // Leading spacer to center first item
-                        Spacer()
-                            .frame(width: UIScreen.main.bounds.width / 2)
+            ScrollView(.horizontal) {
+                HStack(spacing: config.spacing) {
+                    let totalSteps = config.steps * config.count
+                    
+                    ForEach(0...totalSteps, id: \.self) { index in
+                        let remainder = index % config.steps
                         
-                        // Weight ticks with 0.1 increments
-                        ForEach(Int(minWeight * 10)...Int(maxWeight * 10), id: \.self) { weightValue in
-                            let weight = Double(weightValue) / 10.0
-                            let isWhole = weight.truncatingRemainder(dividingBy: 1) == 0
-                            let isHalf = weight.truncatingRemainder(dividingBy: 1) == 0.5
-                            
-                            VStack(spacing: 4) {
-                                Rectangle()
-                                    .fill(Color.gray.opacity(0.4))
-                                    .frame(width: 1.5, height: tickHeight(for: weight))
-                                
-                                if isWhole {
-                                    Text("\(Int(weight))")
-                                        .font(.caption2)
-                                        .foregroundColor(.gray)
+                        Divider()
+                            .background(remainder == 0 ? Color.primary.opacity(0.5) : .gray.opacity(0.5))
+                            .frame(width: 0, height: remainder == 0 ? 20 : 10, alignment: .center)
+                            .frame(maxHeight: 20, alignment: .bottom)
+                            .overlay(alignment: .bottom) {
+                                if remainder == 0 && config.showsText {
+                                    Text("\((index / config.steps) * config.multiplier)")
+                                        .font(.caption)
+                                        .fontWeight(.semibold)
+                                        .textScale(.secondary)
+                                        .fixedSize()
+                                        .offset(y: 20)
                                 }
                             }
-                            .frame(width: tickSpacing)
-                            .id(weight)
-                        }
-                        
-                        // Trailing spacer to center last item
-                        Spacer()
-                            .frame(width: UIScreen.main.bounds.width / 2)
                     }
                 }
-                .scrollPosition(id: .constant(scrollPosition))
-                .scrollTargetBehavior(.paging)
-                .onChange(of: scrollPosition) { _, newValue in
-                    weight = newValue
-                    
-                    // Snap to nearest 0.1 and add haptic feedback
-                    let snappedWeight = round(newValue * 10) / 10
-                    if abs(weight - snappedWeight) > 0.05 {
-                        weight = snappedWeight
-                        
-                        // Haptic feedback for snapping
-                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                        impactFeedback.impactOccurred()
-                    }
-                }
-                
-                // Center indicator line
-                Rectangle()
-                    .fill(Color.green)
-                    .frame(width: 2, height: 50)
+                .frame(height: size.height)
+                .scrollTargetLayout()
             }
-            .frame(height: 80)
-        }
-        .onAppear {
-            scrollPosition = weight
-        }
-        .onChange(of: weight) { _, newValue in
-            scrollPosition = newValue
+            .scrollIndicators(.hidden)
+            .scrollTargetBehavior(.viewAligned)
+            .scrollPosition(id: .init(get: {
+                // Calculates the scroll position based on the current value.
+                let position: Int? = isLoaded ? (Int(value) / config.multiplier) * config.steps : nil
+                return position
+            }, set: { newValue in
+                // Updates the value when the scroll position changes.
+                if let newValue {
+                    value = (CGFloat(newValue) / CGFloat(config.steps)) * CGFloat(config.multiplier)
+                }
+            }))
+            .overlay(alignment: .center) {
+                // The center indicator of the picker.
+                 Rectangle()
+                    .frame(width: 2, height: 40)
+                    .foregroundColor(.green)
+            }
+            .safeAreaPadding(.horizontal, horizontalPadding)
+            .onAppear {
+                if !isLoaded {
+                    isLoaded = true
+                }
+            }
         }
     }
     
-    private func tickHeight(for weight: Double) -> CGFloat {
-        let remainder = weight.truncatingRemainder(dividingBy: 1)
-        if remainder == 0 {
-            return majorTickHeight // Whole numbers
-        } else if remainder == 0.5 {
-            return mediumTickHeight // Half numbers
-        } else {
-            return minorTickHeight // Decimal increments
-        }
+    // MARK: - Configuration Struct
+    
+    struct Config: Equatable {
+        var count: Int
+        var steps: Int = 10
+        var spacing: CGFloat = 12
+        var multiplier: Int = 10
+        var showsText: Bool = true
     }
 }
+
 
 struct WeightEntryView: View {
     @EnvironmentObject var viewModel: HealthViewModel
     @Environment(\.dismiss) private var dismiss
-    @State private var selectedWeight: Double = 170.0
+    @State private var selectedWeight: CGFloat = 170
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 30) {
-                Spacer()
+        NavigationStack {
+            ZStack {
+                // Background color for the whole screen
+                Color(.systemGroupedBackground).edgesIgnoringSafeArea(.all)
                 
-                // Weight Icon
-                Image(systemName: "scalemass.fill")
-                    .font(.system(size: 60))
-                    .foregroundColor(.gray)
-                
-                // Weight Display
-                Text("\(Int(selectedWeight))")
-                    .font(.system(size: 80, weight: .light))
-                    .foregroundColor(.primary)
-                
-                Text("lb")
-                    .font(.system(size: 20))
-                    .foregroundColor(.gray)
-                
-                // Custom Ruler Slider
-                RulerWeightSlider(weight: $selectedWeight)
-                    .padding(.horizontal)
-                
-                // Body Fat Percentage (placeholder)
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Body Fat Percentage")
-                        .font(.system(size: 16, weight: .medium))
+                VStack(spacing: 25) {
                     
-                    Text("--")
-                        .font(.system(size: 24, weight: .bold))
-                    
-                    Text("Progress isn't just numbers — snap a photo to log your journey")
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                        .multilineTextAlignment(.leading)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal)
-                
-                Spacer()
-                
-                // Record Button
-                Button(action: {
-                    // Add haptic feedback
-                    let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                    impactFeedback.impactOccurred()
-                    
-                    viewModel.addWeightEntry(weight: selectedWeight)
-                    dismiss()
-                    
-                    // Show progress view after recording
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        viewModel.showingProgressView = true
+                    // MARK: Top Icon
+                    ZStack(alignment: .center) {
+                         RoundedRectangle(cornerRadius: 15)
+                             .fill(Color(.secondarySystemGroupedBackground))
+                             .frame(width: 100, height: 100)
+                        
+                         Image(systemName: "scalemass.fill")
+                             .font(.system(size: 50))
+                             .foregroundColor(.primary)
+
+                         Image(systemName: "plus.viewfinder")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(.primary)
+                            .padding(4)
+                            .background(Color(.systemGroupedBackground).clipShape(Circle()))
+                            .offset(x: 5, y: 5)
                     }
-                }) {
-                    Text("Record")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 16)
-                        .background(Color.gray)
-                        .cornerRadius(12)
+                    
+                    // MARK: Weight Picker Card
+                    VStack(spacing: 15) {
+                        Text("\(Int(selectedWeight))")
+                            .font(.system(size: 80, weight: .bold))
+                            .contentTransition(.numericText(value: selectedWeight))
+                            .animation(.snappy, value: selectedWeight)
+
+                        WheelPicker(
+                            config: .init(count: 300, steps: 10, spacing: 12, multiplier: 1, showsText: true),
+                            value: $selectedWeight
+                        )
+                        .frame(height: 60)
+                        
+                        Text("lb")
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.secondary)
+                        
+                    }
+                    .padding(.vertical)
+                    .background(Color(.secondarySystemGroupedBackground).clipShape(RoundedRectangle(cornerRadius: 20)))
+
+                    // MARK: Body Fat Percentage Row
+                    HStack {
+                        Text("Body Fat Percentage")
+                            .fontWeight(.medium)
+                        Spacer()
+                        Text("--")
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                    .background(Color(.secondarySystemGroupedBackground).clipShape(RoundedRectangle(cornerRadius: 20)))
+
+                    // MARK: Info Text
+                    Text("Progress isn't just numbers —\nsnap a photo to log your journey")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+
+                    Spacer()
+                    
+                    // MARK: Record Button
+                    Button(action: {
+                        // Add haptic feedback
+                        let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
+                        impactFeedback.impactOccurred()
+                        
+                        viewModel.addWeightEntry(weight: selectedWeight)
+                        dismiss()
+                        
+                        // Show progress view after recording
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            viewModel.showingProgressView = true
+                        }
+                    }) {
+                        Text("Record")
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                            .background(Color.gray)
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom, 30)
                 }
-                .padding(.horizontal)
-                .padding(.bottom, 30)
+                .padding()
             }
             .navigationTitle("Add Weight")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
+                    Button(action: {
                         dismiss()
+                    }) {
+                        Image(systemName: "xmark")
+                            .foregroundColor(.primary)
                     }
                 }
             }
         }
-        .onAppear {
-            selectedWeight = viewModel.currentWeight
-        }
     }
 }
+
 
 struct WeightEntryView_Previews: PreviewProvider {
     static var previews: some View {

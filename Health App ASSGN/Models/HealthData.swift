@@ -8,11 +8,11 @@
 import Foundation
 
 struct HealthData {
-    let currentWeight: Double
-    let weightChange: Double
-    let waterIntake: Double
-    let caloriesBurnt: Double
-    let caloriesConsumed: Double
-    let workoutSessions: Int
-    let nextShotTime: String
+    var currentWeight: Double
+    var weightChange: Double
+    var waterIntake: Int
+    var caloriesBurnt: Double
+    var caloriesConsumed: Double
+    var workoutSessions: Int
+    var nextShotTime: String
 }

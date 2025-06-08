@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct WaterCard: View {
-    let intake: Double
+    let intake: Int
     
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
